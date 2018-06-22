@@ -1,0 +1,11 @@
+[package]
+name = "chum_world"
+version = "0.1.0"
+authors = ["jellonator"]
+
+[dependencies]
+serde_json = "1.0.21"
+clap = "2.31.2"
+byteorder = "1.2.3"
+crc = "1.8.1"
+

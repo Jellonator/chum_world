@@ -1,0 +1,5 @@
+/target
+**/*.rs.bk
+debuginstall.sh
+install.sh
+Cargo.lock
