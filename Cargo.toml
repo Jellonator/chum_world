@@ -10,4 +10,5 @@ serde = "1.0.66"
 clap = "2.31.2"
 byteorder = "1.2.3"
 crc = "1.8.1"
+gtk = {version="0.4.1", features = ["v3_10"]}
 

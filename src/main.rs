@@ -5,6 +5,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate gtk;
 
 use std::path::{Path, PathBuf};
 use std::error;
@@ -15,6 +16,7 @@ use std::cmp;
 pub mod dgc;
 pub mod ngc;
 pub mod util;
+pub mod gui;
 
 /// Complete Chum archive.
 /// Contains both a .NGC archive and a .DGC archive.
@@ -235,7 +237,7 @@ fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
 fn main() -> Result<(), Box<error::Error>> {
     // Generate commands
     let app = clap::App::new("Chum World")
-        .setting(clap::AppSettings::ArgRequiredElseHelp)
+        //.setting(clap::AppSettings::ArgRequiredElseHelp)
         .version("1.0")
         .author("James \"Jellonator\" B. <jellonator00@gmail.com>")
         .about("Edits Revenge of the Flying Dutchman archive files")
@@ -284,8 +286,9 @@ fn main() -> Result<(), Box<error::Error>> {
     }
     else if let Some(cmdlist) = matches.subcommand_matches("pack") {
         cmd_pack(cmdlist)?;
-    } else {
-        // TODO: Run GUI if there is no command given
+    } 
+    else {
+        gui::begin()?;
     }
     Ok(())
 }

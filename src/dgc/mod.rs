@@ -121,6 +121,11 @@ impl DgcArchive {
             chunk_size: calculate_chunk_size(chunk_size),
         }
     }
+
+    /// Iterate over all files in this archive.
+    pub fn iter_files(&self) -> impl Iterator<Item=&DgcFile> {
+        self.data.iter().flat_map(|chunk| chunk.data.iter())
+    }
     
     /// Set a new chunk size. Should be called if a new file is added that is larger than the chunk
     /// size.
