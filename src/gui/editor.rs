@@ -42,16 +42,23 @@ pub fn construct_editor(parent: Rc<RefCell<Page>>, file: Rc<RefCell<ArchiveFile>
         let fname = fname.upgrade().unwrap();
         fname.borrow_mut().name = s.get_text().unwrap();
         pname.borrow_mut().set_file_name(id, &s.get_text().unwrap());
+        pname.borrow_mut().set_need_save(true);
     });
     let ftype = Rc::downgrade(&file);
+    let ptype = Rc::downgrade(&parent);
     entry_type.connect_changed(move |s|{
         let ftype = ftype.upgrade().unwrap();
+        let ptype = ptype.upgrade().unwrap();
         ftype.borrow_mut().typeid = s.get_text().unwrap();
+        ptype.borrow_mut().set_need_save(true);
     });
     let fsubtype = Rc::downgrade(&file);
+    let psubtype = Rc::downgrade(&parent);
     entry_subtype.connect_changed(move |s|{
         let fsubtype = fsubtype.upgrade().unwrap();
+        let psubtype = psubtype.upgrade().unwrap();
         fsubtype.borrow_mut().subtypeid = s.get_text().unwrap();
+        psubtype.borrow_mut().set_need_save(true);
     });
     // create buttons
     let buttonbox = gtk::Box::new(gtk::Orientation::Horizontal, 4);
@@ -89,9 +96,10 @@ pub fn construct_editor(parent: Rc<RefCell<Page>>, file: Rc<RefCell<ArchiveFile>
             freplace.borrow_mut().data = newvec;
             Page::reset_file_editor(&preplace);
         }
+        preplace.borrow_mut().set_need_save(true);
     });
     // Add editor plugin
-    hbox.add(&plugin::create_plugin_for_type(&file));
+    hbox.add(&plugin::create_plugin_for_type(&parent, &file));
     // Return as a widget
     hbox.upcast::<Widget>()
 }

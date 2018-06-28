@@ -207,6 +207,10 @@ impl DgcArchive {
 fn calculate_chunk_size(max_size: usize) -> usize {
     // Each chunk's size is a multiple of 0x800 bytes
     const CHUNK_MULT: usize = 0x800;
+    if max_size == 0 {
+        // avoid subtract with overflow error
+        return CHUNK_MULT;
+    }
     cmp::max(1, 1 + ((max_size - 1) / CHUNK_MULT)) * CHUNK_MULT
 }
 

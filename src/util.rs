@@ -14,7 +14,7 @@ pub fn get_file_string(s: &str, id: u32) -> String {
     } , "_")
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ArchivePathPair {
     pub n: PathBuf,
     pub d: PathBuf,
@@ -23,9 +23,13 @@ pub struct ArchivePathPair {
 pub fn open_any<W>(base_path: &Path, prompt: &str, parent: &W, action: FileChooserAction) 
 -> Option<PathBuf>
 where W: gtk::IsA<gtk::Window> {
+    let btn: &str = match action {
+        FileChooserAction::Open => &gtk::STOCK_OPEN,
+        _ => &gtk::STOCK_SAVE,
+    };
     let dialog = FileChooserDialog::with_buttons(
         Some(prompt),  Some(parent), action,
-        &[(&gtk::STOCK_CANCEL, ResponseType::Cancel), (&gtk::STOCK_OPEN, ResponseType::Accept)]);
+        &[(&gtk::STOCK_CANCEL, ResponseType::Cancel), (btn, ResponseType::Accept)]);
     let file_filter = FileFilter::new();
     file_filter.add_pattern("*.*");
     gtk::FileFilterExt::set_name(&file_filter, "Any file");
@@ -45,9 +49,13 @@ where W: gtk::IsA<gtk::Window> {
 pub fn open_gc<W>(base_path: &Path, parent: &W, action: FileChooserAction) 
 -> Option<ArchivePathPair>
 where W: gtk::IsA<gtk::Window> {
+    let btn: &str = match action {
+        FileChooserAction::Open => &gtk::STOCK_OPEN,
+        _ => &gtk::STOCK_SAVE,
+    };
     let dialog = FileChooserDialog::with_buttons(
         Some("Open File"),  Some(parent), action,
-        &[(&gtk::STOCK_CANCEL, ResponseType::Cancel), (&gtk::STOCK_OPEN, ResponseType::Accept)]);
+        &[(&gtk::STOCK_CANCEL, ResponseType::Cancel), (btn, ResponseType::Accept)]);
     let file_filter = FileFilter::new();
     file_filter.add_pattern("*.DGC");
     gtk::FileFilterExt::set_name(&file_filter, "DGC files");

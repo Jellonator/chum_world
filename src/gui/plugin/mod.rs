@@ -1,6 +1,6 @@
 use gtk::{self, Widget, Label};
 use gtk::prelude::*;
-use super::page::ArchiveFile;
+use super::page::{Page, ArchiveFile};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::io::{self, Read, Write};
@@ -9,7 +9,12 @@ use ::CResult;
 use std::error::Error;
 use std::str;
 
-fn create_plugin_text(file: &Rc<RefCell<ArchiveFile>>) -> CResult<Widget> {
+/// Create a plugin widget for editing TXT files.
+/// TXT files have the following format:
+/// file_size: u32;
+/// data: u8[fize_size];
+/// Some TXT files, such as .PYC files, may contain invalid String characters.
+fn create_plugin_text(parent: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> CResult<Widget> {
     let scroll = gtk::ScrolledWindow::new(None, None);
     scroll.set_margin_left(4);
     scroll.set_margin_right(4);
@@ -23,7 +28,9 @@ fn create_plugin_text(file: &Rc<RefCell<ArchiveFile>>) -> CResult<Widget> {
         let bfile = file.borrow();
         let mut slice = bfile.data.as_slice();
         let size = slice.read_u32::<BigEndian>()? as usize;
-        println!("{} {}", slice.len(), size);
+        // If the string can not be converted from utf8, OR if the string
+        // contains any null characters, then the text box should not be
+        // editable since that would destroy data.
         let mut s: String = if let Ok(s) = str::from_utf8(&slice) {
             s.to_owned()
         } else {
@@ -36,13 +43,17 @@ fn create_plugin_text(file: &Rc<RefCell<ArchiveFile>>) -> CResult<Widget> {
         }
         text.get_buffer().unwrap().set_text(&s);
     }
-    let ftext = file.clone();
+    let ftext = Rc::downgrade(&file);
+    let ptext = Rc::downgrade(&parent);
     text.get_buffer().unwrap().connect_changed(move |b| {
+        let ftext = ftext.upgrade().unwrap();
+        let ptext = ptext.upgrade().unwrap();
         let mut vec = Vec::new();
         let text: String = b.get_text(&b.get_start_iter(), &b.get_end_iter(), true).unwrap();
         vec.write_u32::<BigEndian>(text.len() as u32).unwrap();
         vec.write_all(&text.as_ref()).unwrap();
         ftext.borrow_mut().data = vec;
+        ptext.borrow_mut().set_need_save(true);
     });
 
     scroll.add(&text);
@@ -50,11 +61,13 @@ fn create_plugin_text(file: &Rc<RefCell<ArchiveFile>>) -> CResult<Widget> {
     Ok(scroll.upcast::<Widget>())
 }
 
-pub fn create_plugin_for_type(file: &Rc<RefCell<ArchiveFile>>) -> Widget {
+/// Create a widget for editing the given file's data.
+/// If the file does not have a pre-determined editor, or an editor for the
+/// file could not be created, then a label will be returned.
+pub fn create_plugin_for_type(parent: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> Widget {
     let typestr = &file.borrow().typeid;
-    println!("{}", typestr);
     let result = match typestr.as_ref() {
-        "TXT" => create_plugin_text(file),
+        "TXT" => create_plugin_text(parent, file),
         _ => {
             let ret = Label::new(format!("No editor for type {} exists.", typestr).as_str());
             Ok(ret.upcast::<Widget>())

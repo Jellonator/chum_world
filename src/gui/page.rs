@@ -35,6 +35,7 @@ pub struct Page {
     pub list: ListBox,
     pub parent: Weak<RefCell<Application>>,
     pub tool: gtk::Box,
+    pub need_save: bool,
 }
 
 impl Archive {
@@ -65,10 +66,10 @@ impl Archive {
         for file in &self.files {
             let file = file.borrow();
             let id1: i32 = util::hash_name(&file.name);
-            let id2: i32 = if file.subtypeid == "" {
-                id1
+            let (id2, subtypeid): (i32, String) = if file.subtypeid == "" {
+                (id1, file.name.clone())
             } else {
-                util::hash_name(&file.subtypeid)
+                (util::hash_name(&file.subtypeid), file.subtypeid.clone())
             };
             let type_id: i32 = util::hash_name(&file.typeid);
             dgc.add_file(DgcFile {
@@ -78,9 +79,10 @@ impl Archive {
                 type_id: type_id,
             });
             ngc.names.insert(id1, file.name.clone());
-            ngc.names.insert(id2, file.subtypeid.clone());
+            ngc.names.insert(id2, subtypeid);
             ngc.names.insert(type_id, file.typeid.clone());
         }
+        println!("{:?}", ngc.names);
         (dgc, ngc)
     }
 
@@ -101,6 +103,20 @@ impl Archive {
 }
 
 impl Page {
+    /// Set whether or not this file needs to be saved
+    pub fn set_need_save(&mut self, new_need_save: bool) {
+        if new_need_save != self.need_save {
+            self.label.set_text(&format!("{}{}", 
+                self.paths.d.file_name().unwrap().to_str().unwrap(),
+                match new_need_save {
+                    true => "*",
+                    false => " ",
+                }
+            ));
+        }
+        self.need_save = new_need_save;
+    }
+
     /// Create a new archive page
     pub fn new(parent: &Rc<RefCell<Application>>, paths: ArchivePathPair) -> CResult<Rc<RefCell<Page>>> {
         let label = Label::new(paths.d.file_name().unwrap().to_str().unwrap());
@@ -133,6 +149,7 @@ impl Page {
             archive: Archive::from_archives(dgca, ngca),
             parent: Rc::downgrade(parent),
             tool: tool,
+            need_save: false,
         }));
 
         page.borrow_mut().update_file_list();
@@ -188,12 +205,22 @@ impl Page {
     }
 
     /// Save the archive
-    pub fn save(&self) -> CResult<()> {
+    pub fn save(&mut self) -> CResult<()> {
+        let mut name_file = File::create(&self.paths.n)?;
+        let mut data_file = File::create(&self.paths.d)?;
+
+        let (dgc, ngc) = self.archive.into_archives();
+        dgc.write_to(&mut data_file)?;
+        ngc.write_to(&mut name_file)?;
+
+        self.set_need_save(false);
+
         Ok(())
     }
 
     /// Save the archive as another file
-    pub fn save_as(&mut self, new_path: PathBuf) -> CResult<()> {
-        Ok(())
+    pub fn save_as(&mut self, new_path: ArchivePathPair) -> CResult<()> {
+        self.paths = new_path;
+        self.save()
     }
 }
