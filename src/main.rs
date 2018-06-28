@@ -6,7 +6,6 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate gtk;
-extern crate gio;
 
 use std::path::{Path, PathBuf};
 use std::error;

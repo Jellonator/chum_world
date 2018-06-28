@@ -120,14 +120,13 @@ impl Page {
     /// Create a new archive page
     pub fn new(parent: &Rc<RefCell<Application>>, paths: ArchivePathPair) -> CResult<Rc<RefCell<Page>>> {
         let label = Label::new(paths.d.file_name().unwrap().to_str().unwrap());
-        
+        // load files
         let mut name_file = File::open(&paths.n)?;
         let mut data_file = File::open(&paths.d)?;
         let dgca = DgcArchive::read_from(&mut data_file)?;
         let ngca = NgcArchive::read_from(&mut name_file)?;
-
+        // create pane
         let pane = Paned::new(gtk::Orientation::Horizontal);
-        //pane.set_wide_handle(true);
         let list_scroll = ScrolledWindow::new(None, None);
         list_scroll.set_size_request(64, 64);
         let list = ListBox::new();
@@ -137,38 +136,36 @@ impl Page {
         pane.pack2(&tool, true, false);
         tool.set_size_request(64, 64);
         tool.set_property_expand(true);
-
-        let list2 = list.clone();
-        let pane2 = pane.clone();
-
+        // create page
         let page = Rc::new(RefCell::new(Page {
             paths: paths,
-            container: pane2.upcast::<Container>(),
-            label: label,
-            list: list2,
+            container: pane.clone().upcast::<Container>(),
+            label: label.clone(),
+            list: list.clone(),
             archive: Archive::from_archives(dgca, ngca),
             parent: Rc::downgrade(parent),
             tool: tool,
-            need_save: false,
+            need_save: true,
         }));
-
         page.borrow_mut().update_file_list();
-
+        page.borrow_mut().set_need_save(false);
+        // Add callback for row selection
         let lspage = Rc::downgrade(&page);
-        list.connect_row_selected(move |_, row| {
+        list.connect_row_selected(move |_, _| {
             let lspage = lspage.upgrade().unwrap();
             Page::reset_file_editor(&lspage);
         });
-
         Ok(page)
     }
 
     /// Reset editor for file
     pub fn reset_file_editor(page: &Rc<RefCell<Page>>) {
         let row = page.borrow().list.get_selected_row();
+        // Remove existing editor
         for child in &page.borrow().tool.get_children() {
             page.borrow().tool.remove(child);
         }
+        // Create editor (or empty label if no files are selected)
         if let Some(row) = row {
             let file = page.borrow().archive.files[row.get_index() as usize].clone();
             let editor = editor::construct_editor(page.clone(), file, row.get_index());
@@ -183,10 +180,11 @@ impl Page {
     /// Completely update the file list
     pub fn update_file_list(&mut self) {
         self.archive.sort_files();
+        // Remove all files
         for w in &self.list.get_children() {
             self.list.remove(w);
         }
-
+        // Generate new, better files
         for file in &self.archive.files {
             let file = file.borrow();
             let row_label = Label::new(file.name.as_str());
@@ -206,10 +204,10 @@ impl Page {
 
     /// Save the archive
     pub fn save(&mut self) -> CResult<()> {
+        let (dgc, ngc) = self.archive.into_archives();
+
         let mut name_file = File::create(&self.paths.n)?;
         let mut data_file = File::create(&self.paths.d)?;
-
-        let (dgc, ngc) = self.archive.into_archives();
         dgc.write_to(&mut data_file)?;
         ngc.write_to(&mut name_file)?;
 
@@ -220,7 +218,14 @@ impl Page {
 
     /// Save the archive as another file
     pub fn save_as(&mut self, new_path: ArchivePathPair) -> CResult<()> {
+        let prev_path = self.paths.clone();
         self.paths = new_path;
-        self.save()
+        let result = self.save();
+        // If there's an error, revert to previous path
+        if let Err(_) = &result {
+            self.paths = prev_path;
+        }
+        result
     }
 }
+

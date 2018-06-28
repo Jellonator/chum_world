@@ -7,6 +7,33 @@ use super::plugin;
 use util;
 use std::fs;
 use std::io::{Read, Write};
+use ::CResult;
+
+pub fn action_extract(page: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> CResult<()> {
+    let app = page.borrow().parent.upgrade().unwrap().clone();
+    let window = app.borrow().window.clone();
+    let path = page.borrow().paths.d.parent().unwrap().to_owned();
+    if let Some(path) = util::open_any(&path, "Extract file", &window, gtk::FileChooserAction::Save) {
+        let mut fh = fs::File::create(path)?;
+        fh.write_all(&file.borrow().data)?;
+    }
+    Ok(())
+}
+
+pub fn action_replace(page: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> CResult<()> {
+    let app = &page.borrow().parent.upgrade().unwrap();
+    let window = app.borrow().window.clone();
+    let path = page.borrow().paths.d.parent().unwrap().to_owned();
+    if let Some(path) = util::open_any(&path, "Open file", &window, gtk::FileChooserAction::Open) {
+        let mut fh = fs::File::open(path)?;
+        let mut newvec = Vec::new();
+        fh.read_to_end(&mut newvec)?;
+        file.borrow_mut().data = newvec;
+        Page::reset_file_editor(&page);
+    }
+    page.borrow_mut().set_need_save(true);
+    Ok(())
+}
 
 /// Creates an editor pane for editing the given ArchiveFile.
 pub fn construct_editor(parent: Rc<RefCell<Page>>, file: Rc<RefCell<ArchiveFile>>, id: i32) -> Widget {
@@ -73,13 +100,8 @@ pub fn construct_editor(parent: Rc<RefCell<Page>>, file: Rc<RefCell<ArchiveFile>
     extract_button.connect_clicked(move |_| {
         let pextract = pextract.upgrade().unwrap();
         let fextract = fextract.upgrade().unwrap();
-        let app = &pextract.borrow().parent.upgrade().unwrap();
-        let window = app.borrow().window.clone();
-        let path = pextract.borrow().paths.d.parent().unwrap().to_owned();
-        if let Some(path) = util::open_any(&path, "Extract file", &window, gtk::FileChooserAction::Save) {
-            let mut fh = fs::File::create(path).unwrap();
-            fh.write_all(&fextract.borrow().data).unwrap();
-        }
+        let app = pextract.borrow().parent.upgrade().unwrap().clone();
+        util::handle_result(action_extract(&pextract, &fextract), "Error saving file", &app.borrow().window);
     });
     let freplace = Rc::downgrade(&file);
     let preplace = Rc::downgrade(&parent);
@@ -87,16 +109,7 @@ pub fn construct_editor(parent: Rc<RefCell<Page>>, file: Rc<RefCell<ArchiveFile>
         let preplace = preplace.upgrade().unwrap();
         let freplace = freplace.upgrade().unwrap();
         let app = &preplace.borrow().parent.upgrade().unwrap();
-        let window = app.borrow().window.clone();
-        let path = preplace.borrow().paths.d.parent().unwrap().to_owned();
-        if let Some(path) = util::open_any(&path, "Open file", &window, gtk::FileChooserAction::Open) {
-            let mut fh = fs::File::open(path).unwrap();
-            let mut newvec = Vec::new();
-            fh.read_to_end(&mut newvec).unwrap();
-            freplace.borrow_mut().data = newvec;
-            Page::reset_file_editor(&preplace);
-        }
-        preplace.borrow_mut().set_need_save(true);
+        util::handle_result(action_replace(&preplace, &freplace), "Error opening file", &app.borrow().window);
     });
     // Add editor plugin
     hbox.add(&plugin::create_plugin_for_type(&parent, &file));

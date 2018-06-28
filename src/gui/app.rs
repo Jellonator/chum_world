@@ -1,13 +1,13 @@
 use gtk::{self, MenuItemExt, Button, HeaderBar, Notebook, FileChooserAction};
 use gtk::prelude::*;
-use gio::{self, MenuExt};
-use gio::prelude::*;
 use super::page::Page;
 use util;
 use std::path::Path;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::env;
+use ::CResult;
 
 /// Represents an application
 /// The pages property maps page tab ids to Page objects
@@ -17,6 +17,37 @@ pub struct Application {
     pub notebook: Notebook,
     pub archive_buttons: Vec<gtk::Widget>,
     pub selected: usize,
+}
+
+pub fn action_open_file(app: &Rc<RefCell<Application>>) -> CResult<()> {
+    let path = env::current_dir()?;
+    let value = util::open_gc(&path, &app.borrow().window, FileChooserAction::Open);
+    if let Some(paths) = value {
+        for page in &app.borrow().pages {
+            if page.borrow().paths == paths {
+                return Ok(());
+            }
+        }
+        let page = Page::new(&app, paths)?;
+        Application::add_page(&app, &page);
+    }
+    Ok(())
+}
+
+pub fn action_save_file(app: &Rc<RefCell<Application>>) -> CResult<()> {
+    let current_page = app.borrow().get_current_page().unwrap().clone();
+    current_page.borrow_mut().save()?;
+    Ok(())
+}
+
+pub fn action_saveas(app: &Rc<RefCell<Application>>) -> CResult<()> {
+    let current_page = app.borrow().get_current_page().unwrap().clone();
+    let path = current_page.borrow().paths.d.parent().unwrap().to_owned();
+    let value = util::open_gc(&path, &app.borrow().window, FileChooserAction::Save);
+    if let Some(paths) = value {
+        current_page.borrow_mut().save_as(paths)?;
+    }
+    Ok(())
 }
 
 impl Application {
@@ -85,24 +116,14 @@ impl Application {
         // handle open button
         let btn_open_app = Rc::downgrade(&app);
         btn_open.connect_clicked(move |_| {
-            let btn_open_app = btn_open_app.upgrade().unwrap();
-            let value = util::open_gc(Path::new("/"), &btn_open_app.borrow().window, FileChooserAction::Open);
-            if let Some(paths) = value {
-                for page in &btn_open_app.borrow().pages {
-                    if page.borrow().paths == paths {
-                        return;
-                    }
-                }
-                let page = Page::new(&btn_open_app, paths).unwrap();
-                Application::add_page(&btn_open_app, &page);
-            }
+            let app = btn_open_app.upgrade().unwrap();
+            util::handle_result(action_open_file(&app), "Error opening file", &app.borrow().window);
         });
         // handle save button
         let btn_save_app = Rc::downgrade(&app);
         btn_save.connect_clicked(move |_| {
             let app = btn_save_app.upgrade().unwrap();
-            let current_page = app.borrow().get_current_page().unwrap().clone();
-            current_page.borrow_mut().save().unwrap();
+            util::handle_result(action_save_file(&app), "Error saving file", &app.borrow().window);
         });
         // These callbacks are needed in order to keep pages consistend with
         // the notebook tab order.
@@ -129,12 +150,7 @@ impl Application {
         let btn_saveas_app = Rc::downgrade(&app);
         item_saveas.connect_activate(move |_| {
             let app = btn_saveas_app.upgrade().unwrap();
-            let current_page = app.borrow().get_current_page().unwrap().clone();
-            let path = current_page.borrow().paths.d.parent().unwrap().to_owned();
-            let value = util::open_gc(&path, &app.borrow().window, FileChooserAction::Save);
-            if let Some(paths) = value {
-                current_page.borrow_mut().save_as(paths).unwrap();
-            }
+            util::handle_result(action_saveas(&app), "Error saving file", &app.borrow().window);
         });
         // Update save button
         app.borrow().update_save_button();
