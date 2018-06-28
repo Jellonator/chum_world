@@ -3,10 +3,9 @@ use gtk::prelude::*;
 use super::page::{Page, ArchiveFile};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::io::{self, Read, Write};
+use std::io::Write;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use ::CResult;
-use std::error::Error;
 use std::str;
 
 /// Create a plugin widget for editing TXT files.
@@ -27,7 +26,7 @@ fn create_plugin_text(parent: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>
     {
         let bfile = file.borrow();
         let mut slice = bfile.data.as_slice();
-        let size = slice.read_u32::<BigEndian>()? as usize;
+        let _size = slice.read_u32::<BigEndian>()? as usize;
         // If the string can not be converted from utf8, OR if the string
         // contains any null characters, then the text box should not be
         // editable since that would destroy data.

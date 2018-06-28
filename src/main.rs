@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 extern crate clap;
 extern crate byteorder;
 extern crate crc;

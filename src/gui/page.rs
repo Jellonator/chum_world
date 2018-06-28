@@ -1,7 +1,6 @@
 use gtk::{self, Container, Label, ScrolledWindow, Paned, ListBox};
 use gtk::prelude::*;
 use ::CResult;
-use std::path::PathBuf;
 use util::{self, ArchivePathPair};
 use ngc::NgcArchive;
 use dgc::{DgcArchive, DgcFile};
@@ -82,7 +81,6 @@ impl Archive {
             ngc.names.insert(id2, subtypeid);
             ngc.names.insert(type_id, file.typeid.clone());
         }
-        println!("{:?}", ngc.names);
         (dgc, ngc)
     }
 

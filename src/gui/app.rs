@@ -2,10 +2,8 @@ use gtk::{self, MenuItemExt, Button, HeaderBar, Notebook, FileChooserAction};
 use gtk::prelude::*;
 use super::page::Page;
 use util;
-use std::path::Path;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::env;
 use ::CResult;
 
@@ -193,7 +191,6 @@ impl Application {
         // Create the event for when the tab is closed.
         let btn_close_win = app.borrow().window.clone();
         let weakpg = Rc::downgrade(page);
-        let weakap = Rc::downgrade(app);
         btn_close.connect_clicked(move |_| {
             if util::ask_confirmation(&btn_close_win, "Are you sure you want to close this tab?") {
                 let page = weakpg.upgrade().unwrap();

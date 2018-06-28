@@ -1,4 +1,4 @@
-use gtk::{self, Widget, Container, Label, ScrolledWindow, Paned, ListBox};
+use gtk::{self, Widget};
 use gtk::prelude::*;
 use super::page::{Page, ArchiveFile};
 use std::rc::Rc;
