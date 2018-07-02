@@ -3,7 +3,7 @@ use gtk::prelude::*;
 use gui::page::{Page, ArchiveFile};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use ::CResult;
 use std::collections::HashMap;
 
@@ -23,12 +23,14 @@ pub trait FilePlugin {
     fn get_plugin_string(&self) -> &'static str;
 }
 
+/// Manages plugins. Maps file types to individual plugin handlers.
 pub struct PluginManager {
     pub plugins: HashMap<String, Box<FilePlugin>>,
     pub ftypes: HashMap<String, String>
 }
 
 impl PluginManager {
+    /// Create a new plugin manager
     pub fn new() -> PluginManager {
         let mut ret = PluginManager {
             plugins: HashMap::new(),
@@ -39,16 +41,19 @@ impl PluginManager {
         ret
     }
 
+    /// Register a new plugin
     pub fn register_plugin(&mut self, plugin: Box<FilePlugin>) -> &'static str {
         let ret = plugin.get_plugin_string();
         self.plugins.insert(plugin.get_plugin_string().to_owned(), plugin);
         ret
     }
 
+    /// Associate a file type to a plugin string
     pub fn register_for_type(&mut self, fstr: &str, typestr: &str) {
         self.ftypes.insert(typestr.to_owned(), fstr.to_owned());
     }
 
+    /// Create an editor pane for the given file
     pub fn create_editor(&self, parent: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> Widget {
         let typestr: &str = &file.borrow().typeid;
         let result = match self.ftypes.get(typestr) {
@@ -69,25 +74,34 @@ impl PluginManager {
             }
         }
     }
-}
 
-// /// Create a widget for editing the given file's data.
-// /// If the file does not have a pre-determined editor, or an editor for the
-// /// file could not be created, then a label will be returned.
-// pub fn create_plugin_for_type(parent: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> Widget {
-//     let typestr = &file.borrow().typeid;
-//     let result = match typestr.as_ref() {
-//         "TXT" => create_plugin_text(parent, file),
-//         _ => {
-//             let ret = Label::new(format!("No editor for type {} exists.", typestr).as_str());
-//             Ok(ret.upcast::<Widget>())
-//         }
-//     };
-//     match result {
-//         Ok(widget) => widget,
-//         Err(err) => {
-//             let ret = Label::new(format!("Error opening file:\n{}", err.description()).as_str());
-//             ret.upcast::<Widget>()
-//         }
-//     }
-// }
+    /// Import a file
+    pub fn import<'a>(&self, typestr: &str, input: &mut Read, output: &mut Write) -> CResult<()> {
+        if let Some(plugin) = self.ftypes.get(typestr).and_then(|fstring| {
+            self.plugins.get(fstring)
+        }) {
+            let mut data = Vec::new();
+            plugin.import_data(input, &mut data)?;
+            let mut read: &mut io::Read = &mut &data[..];
+            io::copy(read, output)?;
+        } else {
+            io::copy(input, output)?;
+        }
+        Ok(())
+    }
+
+    /// Export a file
+    pub fn export<'a>(&self, typestr: &str, input: &mut Read, output: &mut Write) -> CResult<()> {
+        if let Some(plugin) = self.ftypes.get(typestr).and_then(|fstring| {
+            self.plugins.get(fstring)
+        }) {
+            let mut data = Vec::new();
+            plugin.export_data(input, &mut data)?;
+            let mut read: &mut io::Read = &mut &data[..];
+            io::copy(read, output)?;
+        } else {
+            io::copy(input, output)?;
+        }
+        Ok(())
+    }
+}

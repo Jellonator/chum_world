@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use util;
 use std::fs;
-use std::io::{Read, Write};
+use std::io;
 use ::CResult;
 
 pub fn action_extract(page: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> CResult<()> {
@@ -13,8 +13,11 @@ pub fn action_extract(page: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>)
     let window = app.borrow().window.clone();
     let path = page.borrow().paths.d.parent().unwrap().to_owned();
     if let Some(path) = util::open_any(&path, "Extract file", &window, gtk::FileChooserAction::Save) {
+        let mut data = Vec::new();
+        let file = file.borrow();
+        page.borrow().plugin_manager.export(&file.typeid, &mut &file.data[..], &mut data)?;
         let mut fh = fs::File::create(path)?;
-        fh.write_all(&file.borrow().data)?;
+        io::copy(&mut &data[..], &mut fh)?;
     }
     Ok(())
 }
@@ -24,9 +27,10 @@ pub fn action_replace(page: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>)
     let window = app.borrow().window.clone();
     let path = page.borrow().paths.d.parent().unwrap().to_owned();
     if let Some(path) = util::open_any(&path, "Open file", &window, gtk::FileChooserAction::Open) {
-        let mut fh = fs::File::open(path)?;
         let mut newvec = Vec::new();
-        fh.read_to_end(&mut newvec)?;
+        let mut fh = fs::File::open(path)?;
+        page.borrow().plugin_manager.import(&file.borrow().typeid, &mut fh, &mut newvec)?;
+        // fh.read_to_end(&mut newvec)?;
         file.borrow_mut().data = newvec;
         Page::reset_file_editor(&page);
     }
