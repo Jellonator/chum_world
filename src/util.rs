@@ -26,23 +26,28 @@ pub struct ArchivePathPair {
 }
 
 /// Opens any file, doesn't care about file types
-pub fn open_any<W>(base_path: &Path, prompt: &str, parent: &W, action: FileChooserAction) 
+pub fn open_any<W>(base_path: &Path, prompt: &str, parent: &W, action: FileChooserAction)
 -> Option<PathBuf>
 where W: gtk::IsA<gtk::Window> {
     let btn: &str = match action {
-        FileChooserAction::Open => &gtk::STOCK_OPEN,
+        FileChooserAction::Open | FileChooserAction::SelectFolder => &gtk::STOCK_OPEN,
         _ => &gtk::STOCK_SAVE,
     };
     let dialog = FileChooserDialog::with_buttons(
         Some(prompt),  Some(parent), action,
         &[(&gtk::STOCK_CANCEL, ResponseType::Cancel), (btn, ResponseType::Accept)]);
-    let file_filter = FileFilter::new();
-    file_filter.add_pattern("*.*");
-    gtk::FileFilterExt::set_name(&file_filter, "Any file");
-    dialog.add_filter(&file_filter);
+    match action {
+        FileChooserAction::Open | FileChooserAction::Save => {
+            let file_filter = FileFilter::new();
+            file_filter.add_pattern("*.*");
+            gtk::FileFilterExt::set_name(&file_filter, "Any file");
+            dialog.add_filter(&file_filter);
+        }
+        _ => {}
+    }
     dialog.set_current_folder(base_path);
 
-    let result = match dialog.run().into() { 
+    let result = match dialog.run().into() {
         ResponseType::Accept => dialog.get_filename(),
         _ => None
     };
@@ -53,23 +58,28 @@ where W: gtk::IsA<gtk::Window> {
 }
 
 /// Open a DGC file and construct a DGC/NGC file path pair
-pub fn open_gc<W>(base_path: &Path, parent: &W, action: FileChooserAction) 
+pub fn open_gc<W>(base_path: &Path, parent: &W, action: FileChooserAction)
 -> Option<ArchivePathPair>
 where W: gtk::IsA<gtk::Window> {
     let btn: &str = match action {
-        FileChooserAction::Open => &gtk::STOCK_OPEN,
+        FileChooserAction::Open | FileChooserAction::SelectFolder => &gtk::STOCK_OPEN,
         _ => &gtk::STOCK_SAVE,
     };
     let dialog = FileChooserDialog::with_buttons(
         Some("Open File"),  Some(parent), action,
         &[(&gtk::STOCK_CANCEL, ResponseType::Cancel), (btn, ResponseType::Accept)]);
-    let file_filter = FileFilter::new();
-    file_filter.add_pattern("*.DGC");
-    gtk::FileFilterExt::set_name(&file_filter, "DGC files");
-    dialog.add_filter(&file_filter);
+    match action {
+        FileChooserAction::Open | FileChooserAction::Save => {
+            let file_filter = FileFilter::new();
+            file_filter.add_pattern("*.DGC");
+            gtk::FileFilterExt::set_name(&file_filter, "DGC files");
+            dialog.add_filter(&file_filter);
+        }
+        _ => {}
+    }
     dialog.set_current_folder(base_path);
 
-    let result = match dialog.run().into() { 
+    let result = match dialog.run().into() {
         ResponseType::Accept => dialog.get_filename().map(|dname| {
             let dpath: PathBuf = dname.into();
             let npath: PathBuf = dpath.with_extension("NGC");
@@ -92,7 +102,7 @@ pub fn ask_confirmation<W>(parent: &W, msg: &str) -> bool
 where W: gtk::IsA<gtk::Window> {
     let flags = gtk::DialogFlags::DESTROY_WITH_PARENT;
     let dialog = gtk::MessageDialog::new(
-        Some(parent), flags, gtk::MessageType::Warning, 
+        Some(parent), flags, gtk::MessageType::Warning,
         gtk::ButtonsType::YesNo, msg);
     let value = dialog.run();
     dialog.destroy();
@@ -116,7 +126,7 @@ pub fn show_error<W>(err: &Error, base_msg: &str, parent: &W)
 where W: gtk::IsA<gtk::Window> {
     let flags = gtk::DialogFlags::DESTROY_WITH_PARENT;
     let dialog = gtk::MessageDialog::new(
-        Some(parent), flags, gtk::MessageType::Error, 
+        Some(parent), flags, gtk::MessageType::Error,
         gtk::ButtonsType::Ok, &format!("{}:\n{}", base_msg, err.description()));
     dialog.run();
     dialog.destroy();

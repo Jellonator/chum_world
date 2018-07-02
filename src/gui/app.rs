@@ -48,6 +48,26 @@ pub fn action_saveas(app: &Rc<RefCell<Application>>) -> CResult<()> {
     Ok(())
 }
 
+pub fn action_extract_all(app: &Rc<RefCell<Application>>) -> CResult<()> {
+    let current_page = app.borrow().get_current_page().unwrap().clone();
+    let path = current_page.borrow().paths.d.parent().unwrap().to_owned();
+    let value = util::open_any(&path, "Select folder to extract files to",
+        &app.borrow().window, FileChooserAction::CreateFolder);
+    Ok(())
+}
+
+pub fn action_import_all(app: &Rc<RefCell<Application>>) -> CResult<()> {
+    let current_page = app.borrow().get_current_page().unwrap().clone();
+    let path = current_page.borrow().paths.d.parent().unwrap().to_owned();
+    let value = util::open_any(&path, "Select folder to import files from",
+        &app.borrow().window, FileChooserAction::SelectFolder);
+    Ok(())
+}
+
+// pub fn action_extract_type(app: &Rc<RefCell<Application>>) -> CResult<()> {
+//
+// }
+
 impl Application {
     /// Get the current page ID
     pub fn get_current_page_id(&self) -> Option<u32> {
@@ -82,11 +102,11 @@ impl Application {
         // Create the menu
         let menu = gtk::Menu::new();
         let item_saveas = gtk::MenuItem::new_with_label("Save As");
-        //let item_extract = gtk::MenuItem::new_with_label("Extract Json");
-        //let item_import = gtk::MenuItem::new_with_label("Import Json");
+        let item_extract = gtk::MenuItem::new_with_label("Extract All Files");
+        let item_import = gtk::MenuItem::new_with_label("Import Folder");
         menu.append(&item_saveas);
-        //menu.append(&item_extract);
-        //menu.append(&item_import);
+        menu.append(&item_extract);
+        menu.append(&item_import);
         menu.show_all();
         btn_menu.set_popup(Some(&menu));
         // Add notebook tabs to the application
@@ -108,7 +128,8 @@ impl Application {
             window: window,
             pages: Vec::new(),
             notebook: notebook.clone(),
-            archive_buttons: vec![btn_save.clone().upcast(), btn_menu.clone().upcast()],
+            archive_buttons: vec![
+                btn_save.clone().upcast(), btn_menu.clone().upcast()],
             selected: 0,
         }));
         // handle open button
@@ -149,6 +170,16 @@ impl Application {
         item_saveas.connect_activate(move |_| {
             let app = btn_saveas_app.upgrade().unwrap();
             util::handle_result(action_saveas(&app), "Error saving file", &app.borrow().window);
+        });
+        let btn_import_app = Rc::downgrade(&app);
+        item_import.connect_activate(move |_| {
+            let app = btn_import_app.upgrade().unwrap();
+            util::handle_result(action_import_all(&app), "Error importing files", &app.borrow().window);
+        });
+        let btn_extract_app = Rc::downgrade(&app);
+        item_extract.connect_activate(move |_| {
+            let app = btn_extract_app.upgrade().unwrap();
+            util::handle_result(action_extract_all(&app), "Error extracting files", &app.borrow().window);
         });
         // Update save button
         app.borrow().update_save_button();
@@ -202,4 +233,3 @@ impl Application {
         app.borrow().update_save_button();
     }
 }
-
