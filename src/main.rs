@@ -18,6 +18,7 @@ pub mod dgc;
 pub mod ngc;
 pub mod util;
 pub mod gui;
+pub mod plugin;
 
 /// Complete Chum archive.
 /// Contains both a .NGC archive and a .DGC archive.
@@ -49,7 +50,7 @@ fn load_archive(path: &Path) -> CResult<ChumArchive> {
 /// Gets information about the given archive.
 fn cmd_info(matches: &clap::ArgMatches) -> CResult<()> {
     let archive = load_archive(Path::new(matches.value_of_os("FILE").unwrap()))?;
-    
+
     let chunk_size = archive.dgc.chunk_size;
     let mut max_file_size = 0usize;
     let mut min_file_size = usize::max_value();
@@ -70,7 +71,7 @@ fn cmd_info(matches: &clap::ArgMatches) -> CResult<()> {
             }
         }
         let padding_size = chunk_size - chunk_total_size;
-        println!("Chunk {:>3}: {:>3} files {:>8}B data {:>8}B padding", i, 
+        println!("Chunk {:>3}: {:>3} files {:>8}B data {:>8}B padding", i,
                  chunk.data.len(), chunk_total_size, padding_size);
     }
     println!("Chunk size: {}B ({0:X})", chunk_size);
@@ -98,25 +99,13 @@ fn cmd_list(matches: &clap::ArgMatches) -> CResult<()> {
             println!("{:8X} {:>35}: {}", id, typestr, &id_lookup[&file.id1]);
         }
     }
-    
-    /* ID's are all IEEE CRC32 hashes
-    use crc::crc32;
-    for element in id_lookup {
-        let id: u32 = element.0 as u32;
-        let filename: &str = &element.1.filename;
-        let hieee = crc32::checksum_ieee(&filename.as_bytes());
-        let hcast = crc32::checksum_castagnoli(&filename.as_bytes());
-        let hkoop = crc32::checksum_koopman(&filename.as_bytes());
-        println!("{:8X}, {:8X}({:5}), {:8X}({:5}), {:8X}({:5})", id, hieee, hieee==id, hcast, hcast==id, hkoop, hkoop==id);
-    }*/
-
     Ok(())
 }
 
 /// Represents the data stored in the .json file.
 /// This is necessary for serializing archive data into a json file, as the
 /// information in the DgcArchive and NgcArchive need to be merged, and some
-/// data that is stored can be safely removed (e.g. splitting files into 
+/// data that is stored can be safely removed (e.g. splitting files into
 /// chunks, chunk sizes, the actual file's data, etc.).
 #[derive(Serialize, Deserialize)]
 struct JsonData {
@@ -149,7 +138,7 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
     let output_path = Path::new(matches.value_of_os("OUTPUT").unwrap());
     let output_folder = output_path.with_extension("d");
     let id_lookup = &archive.ngc.names;
-    
+
     fs::create_dir_all(&output_folder)?;
     let mut json_file = File::create(&output_path)?;
     let mut json_data = JsonData {
@@ -180,7 +169,7 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
             });
         }
     }
-    
+
     serde_json::to_writer_pretty(&mut json_file, &json_data)?;
 
     Ok(())
@@ -196,8 +185,8 @@ fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
     let json_file = File::open(&json_path)?;
     let json_data: JsonData = serde_json::from_reader(json_file)?;
     let file_folder = json_path.parent().unwrap().join(json_data.folder);
-    
-    let mut files = Vec::new(); 
+
+    let mut files = Vec::new();
     for f in &json_data.files {
         let mut fh = File::open(&file_folder.join(&f.file_name))?;
         let mut data = Vec::new();
@@ -278,7 +267,7 @@ fn main() -> Result<(), Box<error::Error>> {
     let matches = app.get_matches();
     if let Some(cmdlist) = matches.subcommand_matches("list") {
         cmd_list(cmdlist)?;
-    } 
+    }
     else if let Some(cmdlist) = matches.subcommand_matches("info") {
         cmd_info(cmdlist)?;
     }
@@ -287,7 +276,7 @@ fn main() -> Result<(), Box<error::Error>> {
     }
     else if let Some(cmdlist) = matches.subcommand_matches("pack") {
         cmd_pack(cmdlist)?;
-    } 
+    }
     else {
         gui::begin()?;
     }

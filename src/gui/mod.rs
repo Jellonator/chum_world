@@ -4,7 +4,6 @@ use gtk::prelude::*;
 pub mod app;
 pub mod page;
 pub mod editor;
-pub mod plugin;
 
 pub fn begin() -> super::CResult<()> {
     gtk::init()?;

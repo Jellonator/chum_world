@@ -9,6 +9,7 @@ use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use super::editor;
 use super::app::Application;
+use plugin;
 
 /// Single DGC file, but with IDs replaced with names.
 pub struct ArchiveFile {
@@ -35,6 +36,7 @@ pub struct Page {
     pub parent: Weak<RefCell<Application>>,
     pub tool: gtk::Box,
     pub need_save: bool,
+    pub plugin_manager: plugin::PluginManager,
 }
 
 impl Archive {
@@ -104,7 +106,7 @@ impl Page {
     /// Set whether or not this file needs to be saved
     pub fn set_need_save(&mut self, new_need_save: bool) {
         if new_need_save != self.need_save {
-            self.label.set_text(&format!("{}{}", 
+            self.label.set_text(&format!("{}{}",
                 self.paths.d.file_name().unwrap().to_str().unwrap(),
                 match new_need_save {
                     true => "*",
@@ -144,6 +146,7 @@ impl Page {
             parent: Rc::downgrade(parent),
             tool: tool,
             need_save: true,
+            plugin_manager: plugin::PluginManager::new(),
         }));
         page.borrow_mut().update_file_list();
         page.borrow_mut().set_need_save(false);
@@ -226,4 +229,3 @@ impl Page {
         result
     }
 }
-

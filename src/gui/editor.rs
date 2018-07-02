@@ -3,7 +3,6 @@ use gtk::prelude::*;
 use super::page::{Page, ArchiveFile};
 use std::rc::Rc;
 use std::cell::RefCell;
-use super::plugin;
 use util;
 use std::fs;
 use std::io::{Read, Write};
@@ -112,8 +111,7 @@ pub fn construct_editor(parent: Rc<RefCell<Page>>, file: Rc<RefCell<ArchiveFile>
         util::handle_result(action_replace(&preplace, &freplace), "Error opening file", &app.borrow().window);
     });
     // Add editor plugin
-    hbox.add(&plugin::create_plugin_for_type(&parent, &file));
+    hbox.add(&parent.borrow().plugin_manager.create_editor(&parent, &file));
     // Return as a widget
     hbox.upcast::<Widget>()
 }
-
