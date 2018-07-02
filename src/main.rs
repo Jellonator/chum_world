@@ -112,23 +112,15 @@ struct JsonData {
     header: String,
     folder: String,
     files: Vec<JsonDataFile>,
-    names: Vec<JsonDataName>,
 }
 
 /// Represents a file element in the .json file.
 #[derive(Serialize, Deserialize)]
 struct JsonDataFile {
-    id: i32,
-    type_id: i32,
-    parent_id: i32,
+    id: String,
+    type_id: String,
+    subtype_id: String,
     file_name: String,
-}
-
-/// Represents a name element in the .json file.
-#[derive(Serialize, Deserialize)]
-struct JsonDataName {
-    id: i32,
-    name: String,
 }
 
 /// Extract command.
@@ -145,15 +137,7 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
         folder: output_folder.file_name().unwrap().to_str().unwrap().to_owned(),
         header: String::from_utf8_lossy(&archive.dgc.header.legal_notice).to_string(),
         files: vec![],
-        names: vec![],
     };
-
-    for element in &archive.ngc.names {
-        json_data.names.push(JsonDataName {
-            id: *element.0,
-            name: element.1.clone(),
-        });
-    }
 
     for chunk in archive.dgc.data {
         for file in chunk.data {
@@ -162,9 +146,9 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
             let mut fh = File::create(&fpath)?;
             fh.write_all(&file.data)?;
             json_data.files.push(JsonDataFile {
-                id: file.id1,
-                type_id: file.type_id,
-                parent_id: file.id2,
+                id: id_lookup[&file.id1].to_owned(),
+                type_id: id_lookup[&file.type_id].to_owned(),
+                subtype_id: id_lookup[&file.id2].to_owned(),
                 file_name: fpath.file_name().unwrap().to_str().unwrap().to_owned(),
             });
         }
@@ -178,24 +162,28 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
 /// Pack command.
 /// Pack the extracted .json and data folder back into archive files.
 fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
-    // let archive = load_archive(Path::new(matches.value_of_os("OUTPUT").unwrap()))?;
     let json_path = Path::new(matches.value_of_os("INPUT").unwrap());
-    // let file_folder = json_path.with_extension("d");
-
     let json_file = File::open(&json_path)?;
     let json_data: JsonData = serde_json::from_reader(json_file)?;
     let file_folder = json_path.parent().unwrap().join(json_data.folder);
 
     let mut files = Vec::new();
+    let mut ngc = ngc::NgcArchive::new();
     for f in &json_data.files {
         let mut fh = File::open(&file_folder.join(&f.file_name))?;
         let mut data = Vec::new();
         fh.read_to_end(&mut data)?;
+        let id_hash        = util::hash_name(&f.id);
+        let subtypeid_hash = util::hash_name(&f.subtype_id);
+        let typeid_hash    = util::hash_name(&f.type_id);
+        ngc.names.insert(id_hash,        f.id.to_owned());
+        ngc.names.insert(subtypeid_hash, f.subtype_id.to_owned());
+        ngc.names.insert(typeid_hash,    f.type_id.to_owned());
         files.push(dgc::DgcFile {
             data: data,
-            id1: f.id,
-            id2: f.parent_id,
-            type_id: f.type_id,
+            id1: id_hash,
+            id2: subtypeid_hash,
+            type_id: typeid_hash,
         });
     }
 
@@ -205,11 +193,6 @@ fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
     let mut dgc = dgc::DgcArchive::new(&json_data.header, max_file_size);
     for f in files {
         dgc.add_file(f);
-    }
-
-    let mut ngc = ngc::NgcArchive::new();
-    for n in &json_data.names {
-        ngc.names.insert(n.id, n.name.clone());
     }
 
     let path = Path::new(matches.value_of_os("OUTPUT").unwrap());
