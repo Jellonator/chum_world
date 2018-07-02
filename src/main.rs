@@ -11,7 +11,7 @@ extern crate gtk;
 use std::path::{Path, PathBuf};
 use std::error;
 use std::fs::{self, File};
-use std::io::{Write, Read};
+use std::io::Write;
 use std::cmp;
 
 pub mod dgc;
@@ -130,6 +130,7 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
     let output_path = Path::new(matches.value_of_os("OUTPUT").unwrap());
     let output_folder = output_path.with_extension("d");
     let id_lookup = &archive.ngc.names;
+    let plugin_manager = plugin::PluginManager::new();
 
     fs::create_dir_all(&output_folder)?;
     let mut json_file = File::create(&output_path)?;
@@ -141,10 +142,13 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
 
     for chunk in archive.dgc.data {
         for file in chunk.data {
+            let ftype = &id_lookup[&file.type_id];
             let fname = util::get_file_string(&id_lookup[&file.id1], file.id1 as u32);
             let fpath = output_folder.join(fname);
             let mut fh = File::create(&fpath)?;
-            fh.write_all(&file.data)?;
+            let mut data = Vec::new();
+            plugin_manager.export(ftype, &mut &file.data[..], &mut data)?;
+            fh.write_all(&mut &data[..])?;
             json_data.files.push(JsonDataFile {
                 id: id_lookup[&file.id1].to_owned(),
                 type_id: id_lookup[&file.type_id].to_owned(),
@@ -166,13 +170,14 @@ fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
     let json_file = File::open(&json_path)?;
     let json_data: JsonData = serde_json::from_reader(json_file)?;
     let file_folder = json_path.parent().unwrap().join(json_data.folder);
+    let plugin_manager = plugin::PluginManager::new();
 
     let mut files = Vec::new();
     let mut ngc = ngc::NgcArchive::new();
     for f in &json_data.files {
         let mut fh = File::open(&file_folder.join(&f.file_name))?;
         let mut data = Vec::new();
-        fh.read_to_end(&mut data)?;
+        plugin_manager.import(&f.type_id, &mut fh, &mut data)?;
         let id_hash        = util::hash_name(&f.id);
         let subtypeid_hash = util::hash_name(&f.subtype_id);
         let typeid_hash    = util::hash_name(&f.type_id);
