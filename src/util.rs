@@ -3,8 +3,30 @@ use gtk::{self, FileChooserDialog, FileChooserAction, FileFilter, ResponseType};
 use std::path::{Path, PathBuf};
 use crc::crc32;
 use std::error::Error;
-use ::CResult;
 use std::borrow::Borrow;
+use std::fs;
+use dgc;
+use ngc;
+
+/// Complete Chum archive.
+/// Contains both a .NGC archive and a .DGC archive.
+pub struct ChumArchive {
+    pub dgc: dgc::DgcArchive,
+    pub ngc: ngc::NgcArchive,
+}
+
+/// A Result type that can be any error.
+pub type CResult<T> = Result<T, Box<Error>>;
+
+/// Returns Ok(true) if the given folder is not empty
+/// Returns Ok(false) if the given folder is empty
+/// Returns Err(_) if an error occurs
+pub fn is_dir_populated(path: &Path) -> CResult<bool> {
+    match fs::read_dir(path)?.next() {
+        Some(_) => Ok(true),
+        None => Ok(false),
+    }
+}
 
 /// Get the output file name for the given file string and id
 pub fn get_file_string(s: &str, id: u32) -> String {

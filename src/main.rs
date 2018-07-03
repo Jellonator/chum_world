@@ -1,34 +1,25 @@
 #![windows_subsystem = "windows"]
-extern crate clap;
 extern crate byteorder;
+extern crate clap;
 extern crate crc;
+extern crate gtk;
 extern crate serde;
-extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-extern crate gtk;
-
-use std::path::{Path, PathBuf};
-use std::error;
-use std::fs::{self, File};
-use std::io::Write;
-use std::cmp;
+extern crate serde_json;
 
 pub mod dgc;
-pub mod ngc;
-pub mod util;
+pub mod extract;
 pub mod gui;
+pub mod ngc;
 pub mod plugin;
+pub mod util;
 
-/// Complete Chum archive.
-/// Contains both a .NGC archive and a .DGC archive.
-struct ChumArchive {
-    dgc: dgc::DgcArchive,
-    ngc: ngc::NgcArchive,
-}
-
-/// A Result type that can be any error.
-type CResult<T> = Result<T, Box<error::Error>>;
+use std::cmp;
+use std::error;
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
+use util::{CResult, ChumArchive};
 
 fn load_archive(path: &Path) -> CResult<ChumArchive> {
     let path = PathBuf::from(path);
@@ -102,63 +93,35 @@ fn cmd_list(matches: &clap::ArgMatches) -> CResult<()> {
     Ok(())
 }
 
-/// Represents the data stored in the .json file.
-/// This is necessary for serializing archive data into a json file, as the
-/// information in the DgcArchive and NgcArchive need to be merged, and some
-/// data that is stored can be safely removed (e.g. splitting files into
-/// chunks, chunk sizes, the actual file's data, etc.).
-#[derive(Serialize, Deserialize)]
-struct JsonData {
-    header: String,
-    folder: String,
-    files: Vec<JsonDataFile>,
-}
-
-/// Represents a file element in the .json file.
-#[derive(Serialize, Deserialize)]
-struct JsonDataFile {
-    id: String,
-    type_id: String,
-    subtype_id: String,
-    file_name: String,
-}
-
 /// Extract command.
 /// Extracts the data from an archive into a folder and a json file.
 fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
     let archive = load_archive(Path::new(matches.value_of_os("INPUT").unwrap()))?;
     let output_path = Path::new(matches.value_of_os("OUTPUT").unwrap());
-    let output_folder = output_path.with_extension("d");
-    let id_lookup = &archive.ngc.names;
-    let plugin_manager = plugin::PluginManager::new();
 
-    fs::create_dir_all(&output_folder)?;
-    let mut json_file = File::create(&output_path)?;
-    let mut json_data = JsonData {
-        folder: output_folder.file_name().unwrap().to_str().unwrap().to_owned(),
-        header: String::from_utf8_lossy(&archive.dgc.header.legal_notice).to_string(),
-        files: vec![],
-    };
-
-    for chunk in archive.dgc.data {
-        for file in chunk.data {
-            let ftype = &id_lookup[&file.type_id];
-            let fname = util::get_file_string(&id_lookup[&file.id1], file.id1 as u32);
-            let fpath = output_folder.join(fname);
-            let mut fh = File::create(&fpath)?;
-            let mut data = Vec::new();
-            plugin_manager.export(ftype, &mut &file.data[..], &mut data)?;
-            fh.write_all(&mut &data[..])?;
-            json_data.files.push(JsonDataFile {
-                id: id_lookup[&file.id1].to_owned(),
-                type_id: id_lookup[&file.type_id].to_owned(),
-                subtype_id: id_lookup[&file.id2].to_owned(),
-                file_name: fpath.file_name().unwrap().to_str().unwrap().to_owned(),
-            });
+    fs::create_dir_all(&output_path)?;
+    let mut merge = false;
+    if util::is_dir_populated(&output_path)? {
+        if matches.is_present("replace") {
+            for path in fs::read_dir(&output_path)? {
+                let path = path?;
+                if path.file_type()?.is_file() {
+                    fs::remove_file(&path.path())?;
+                }
+            }
+        }
+        else if matches.is_present("merge") {
+            merge = true;
+        }
+        else {
+            println!("The given folder already exists. Consider using the following flags:");
+            println!("    --merge,-m to merge the contents of the file with the existing folder");
+            println!("    --replace,-p to replace the existing folder");
+            return Ok(());
         }
     }
 
-    serde_json::to_writer_pretty(&mut json_file, &json_data)?;
+    extract::extract_archive(&archive, &output_path, merge)?;
 
     println!("Extraction successful");
 
@@ -168,50 +131,19 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
 /// Pack command.
 /// Pack the extracted .json and data folder back into archive files.
 fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
-    let json_path = Path::new(matches.value_of_os("INPUT").unwrap());
-    let json_file = File::open(&json_path)?;
-    let json_data: JsonData = serde_json::from_reader(json_file)?;
-    let file_folder = json_path.parent().unwrap().join(json_data.folder);
-    let plugin_manager = plugin::PluginManager::new();
+    let input_path = Path::new(matches.value_of_os("INPUT").unwrap());
 
-    let mut files = Vec::new();
-    let mut ngc = ngc::NgcArchive::new();
-    for f in &json_data.files {
-        let mut fh = File::open(&file_folder.join(&f.file_name))?;
-        let mut data = Vec::new();
-        plugin_manager.import(&f.type_id, &mut fh, &mut data)?;
-        let id_hash        = util::hash_name(&f.id);
-        let subtypeid_hash = util::hash_name(&f.subtype_id);
-        let typeid_hash    = util::hash_name(&f.type_id);
-        ngc.names.insert(id_hash,        f.id.to_owned());
-        ngc.names.insert(subtypeid_hash, f.subtype_id.to_owned());
-        ngc.names.insert(typeid_hash,    f.type_id.to_owned());
-        files.push(dgc::DgcFile {
-            data: data,
-            id1: id_hash,
-            id2: subtypeid_hash,
-            type_id: typeid_hash,
-        });
-    }
-
-    let max_file_size = files.iter().fold(0,
-        |acc, f| cmp::max(acc, f.data.len()));
-
-    let mut dgc = dgc::DgcArchive::new(&json_data.header, max_file_size);
-
-    for f in files {
-        dgc.add_file(f);
-    }
+    let archive = extract::import_archive(&input_path)?;
 
     let path = Path::new(matches.value_of_os("OUTPUT").unwrap());
     let ngc_path = path.with_extension("NGC");
     let dgc_path = path.with_extension("DGC");
 
     let mut ngc_file = File::create(ngc_path)?;
-    ngc.write_to(&mut ngc_file)?;
+    archive.ngc.write_to(&mut ngc_file)?;
 
     let mut dgc_file = File::create(dgc_path)?;
-    dgc.write_to(&mut dgc_file)?;
+    archive.dgc.write_to(&mut dgc_file)?;
 
     println!("Packing successful");
 
@@ -238,19 +170,28 @@ fn main() -> Result<(), Box<error::Error>> {
                  .required(true)
                  .index(1)))
         .subcommand(clap::SubCommand::with_name("extract")
-            .about("Extract the contents of an archive to a json file as well as a folder")
+            .about("Extract the contents of an archive to a folder")
             .arg(clap::Arg::with_name("INPUT")
                  .help("The archive file to open")
                  .required(true)
                  .index(1))
             .arg(clap::Arg::with_name("OUTPUT")
-                 .help("The json file to output the archive's contents to")
+                 .help("The folder to extract the archive's contents to")
                  .required(true)
-                 .index(2)))
+                 .index(2))
+            .arg(clap::Arg::with_name("merge")
+                 .help("Merge with existing")
+                 .long("merge")
+                 .short("m"))
+            .arg(clap::Arg::with_name("replace")
+                 .help("Replace existing folder")
+                 .long("replace")
+                 .short("p")
+                 .conflicts_with("merge")))
         .subcommand(clap::SubCommand::with_name("pack")
             .about("Pack the extracted contents of an archive back into an archive")
             .arg(clap::Arg::with_name("INPUT")
-                 .help("The extracted json file")
+                 .help("The folder with extracted file contents")
                  .required(true)
                  .index(1))
             .arg(clap::Arg::with_name("OUTPUT")
