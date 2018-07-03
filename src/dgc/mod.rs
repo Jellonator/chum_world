@@ -60,7 +60,7 @@ impl DgcChunk {
             data: Vec::new()
         }
     }
-    
+
     /// Add a file to this chunk
     pub fn add_file(&mut self, file: DgcFile) {
         self.data.push(file);
@@ -98,7 +98,7 @@ impl DgcChunk {
 /// .DGC archive
 /// Contains the header information about the archive, as well as all of the files stored in the
 /// archive sorted into individual chunks. This structure can also serve as an abstraction layer
-/// that can automatically divide up files into chunks without having to to worry about the 
+/// that can automatically divide up files into chunks without having to to worry about the
 /// details.
 pub struct DgcArchive {
     pub header: DgcHeader,
@@ -126,7 +126,7 @@ impl DgcArchive {
     pub fn iter_files(&self) -> impl Iterator<Item=&DgcFile> {
         self.data.iter().flat_map(|chunk| chunk.data.iter())
     }
-    
+
     /// Set a new chunk size. Should be called if a new file is added that is larger than the chunk
     /// size.
     fn reevaluate_files(&mut self, new_size: usize) {
@@ -153,9 +153,11 @@ impl DgcArchive {
     /// Add a file to this archive. Will be automatically put into a chunk. This function may
     /// re-distribute files to chunks if the given file is too big to fit into any chunk.
     pub fn add_file(&mut self, file: DgcFile) {
-        if file.data.len() > self.chunk_size {
-            self.reevaluate_files(file.data.len());
+        // Make sure that the file's size + chunk header size is less than the chunk size
+        if file.get_size() + 4 > self.chunk_size {
+            self.reevaluate_files(file.get_size() + 4);
         }
+        // Add the file to the next chunk where it will fit
         for chunk in &mut self.data {
             if chunk.get_size() + file.get_size() <= self.chunk_size {
                 chunk.add_file(file);
@@ -236,4 +238,3 @@ fn load_chunk(mut data: &[u8]) -> io::Result<DgcChunk> {
         data: files,
     })
 }
-

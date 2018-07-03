@@ -160,6 +160,8 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
 
     serde_json::to_writer_pretty(&mut json_file, &json_data)?;
 
+    println!("Extraction successful");
+
     Ok(())
 }
 
@@ -196,6 +198,7 @@ fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
         |acc, f| cmp::max(acc, f.data.len()));
 
     let mut dgc = dgc::DgcArchive::new(&json_data.header, max_file_size);
+
     for f in files {
         dgc.add_file(f);
     }
@@ -206,8 +209,11 @@ fn cmd_pack(matches: &clap::ArgMatches) -> CResult<()> {
 
     let mut ngc_file = File::create(ngc_path)?;
     ngc.write_to(&mut ngc_file)?;
+
     let mut dgc_file = File::create(dgc_path)?;
     dgc.write_to(&mut dgc_file)?;
+
+    println!("Packing successful");
 
     Ok(())
 }
