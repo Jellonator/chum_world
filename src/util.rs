@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use crc::crc32;
 use std::error::Error;
 use std::borrow::Borrow;
-use std::fs;
 use dgc;
 use ngc;
 
@@ -17,16 +16,6 @@ pub struct ChumArchive {
 
 /// A Result type that can be any error.
 pub type CResult<T> = Result<T, Box<Error>>;
-
-/// Returns Ok(true) if the given folder is not empty
-/// Returns Ok(false) if the given folder is empty
-/// Returns Err(_) if an error occurs
-pub fn is_dir_populated(path: &Path) -> CResult<bool> {
-    match fs::read_dir(path)?.next() {
-        Some(_) => Ok(true),
-        None => Ok(false),
-    }
-}
 
 /// Get the output file name for the given file string and id
 pub fn get_file_string(s: &str, id: u32) -> String {
@@ -131,6 +120,31 @@ where W: gtk::IsA<gtk::Window> {
     match value.into() {
         gtk::ResponseType::Yes => true,
         _ => false,
+    }
+}
+
+/// Ask the user if they would like to merge with the exissting folder
+/// Some(true) to merge
+/// Some(false) to replace
+/// None to cancel
+pub fn ask_merge<W>(parent: &W) -> Option<bool>
+where W: gtk::IsA<gtk::Window> {
+    let flags = gtk::DialogFlags::DESTROY_WITH_PARENT;
+    let dialog = gtk::MessageDialog::new(
+        Some(parent), flags, gtk::MessageType::Warning,
+        gtk::ButtonsType::None,
+"The given folder is not empty.
+Do you want to merge with the existing folder?
+(Note: Replacing the folder will remove the folder's contents)");
+    dialog.add_button("Replace", ResponseType::No.into());
+    dialog.add_button("Cancel", ResponseType::Cancel.into());
+    dialog.add_button("Merge", ResponseType::Yes.into());
+    let value = dialog.run();
+    dialog.destroy();
+    match value.into() {
+        gtk::ResponseType::Yes => Some(true),
+        gtk::ResponseType::No => Some(false),
+        _ => None,
     }
 }
 

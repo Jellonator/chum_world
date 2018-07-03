@@ -1,11 +1,12 @@
 use gtk::{self, MenuItemExt, Button, HeaderBar, Notebook, FileChooserAction};
 use gtk::prelude::*;
 use super::page::Page;
-use util;
+use util::{self, CResult, ChumArchive};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::env;
-use ::CResult;
+use std::fs;
+use extract;
 
 /// Represents an application
 /// The pages property maps page tab ids to Page objects
@@ -53,6 +54,41 @@ pub fn action_extract_all(app: &Rc<RefCell<Application>>) -> CResult<()> {
     let path = current_page.borrow().paths.d.parent().unwrap().to_owned();
     let value = util::open_any(&path, "Select folder to extract files to",
         &app.borrow().window, FileChooserAction::CreateFolder);
+    // println!("{:?}", );
+    if let Some(path) = value {
+        let mut do_merge = false;
+        let mut do_extract = true;
+        if path.join("meta.json").exists() {
+            match util::ask_merge(&app.borrow().window) {
+                Some(true) => {
+                    do_extract = true;
+                    do_merge = true;
+                },
+                Some(false) => {
+                    for path in fs::read_dir(&path)? {
+                        let path = path?;
+                        if path.file_type()?.is_file() {
+                            fs::remove_file(&path.path())?;
+                        }
+                    }
+                    do_extract = true;
+                    do_merge = false;
+                }
+                None => {
+                    do_extract = false;
+                    do_merge = false;
+                }
+            }
+        }
+        if do_extract {
+            let archives = current_page.borrow().archive.into_archives();
+            let archive = ChumArchive {
+                dgc: archives.0,
+                ngc: archives.1,
+            };
+            extract::extract_archive(&archive, &path, do_merge)?;
+        }
+    }
     Ok(())
 }
 

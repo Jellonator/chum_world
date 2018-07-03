@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use super::editor;
 use super::app::Application;
 use plugin;
+use std::mem;
 
 /// Single DGC file, but with IDs replaced with names.
 pub struct ArchiveFile {
@@ -99,6 +100,37 @@ impl Archive {
                 a.name.cmp(&b.name)
             }
         });
+    }
+
+    /// Return true if the file exists
+    pub fn exists(&self, name: &str) -> bool{
+        for f in &self.files {
+            if f.borrow().name == name {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Find the file in the archive
+    pub fn find(&self, name: &str) -> Option<usize> {
+        for i in 0..self.files.len() {
+            if self.files[i].borrow().name == name {
+                return Some(i);
+            }
+        }
+        return None;
+    }
+
+    /// Add the file to this archive
+    /// Returns the file that was replaced by this file
+    pub fn add(&mut self, file: ArchiveFile) -> Option<ArchiveFile> {
+        if let Some(i) = self.find(&file.name) {
+            Some(self.files[i].replace(file))
+        } else {
+            self.files.push(Rc::new(RefCell::new(file)));
+            None
+        }
     }
 }
 

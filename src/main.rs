@@ -101,7 +101,7 @@ fn cmd_extract(matches: &clap::ArgMatches) -> CResult<()> {
 
     fs::create_dir_all(&output_path)?;
     let mut merge = false;
-    if util::is_dir_populated(&output_path)? {
+    if output_path.join("meta.json").exists() {
         if matches.is_present("replace") {
             for path in fs::read_dir(&output_path)? {
                 let path = path?;
@@ -154,7 +154,7 @@ fn main() -> Result<(), Box<error::Error>> {
     // Generate commands
     let app = clap::App::new("Chum World")
         //.setting(clap::AppSettings::ArgRequiredElseHelp)
-        .version("1.0")
+        .version("0.1.1")
         .author("James \"Jellonator\" B. <jellonator00@gmail.com>")
         .about("Edits Revenge of the Flying Dutchman archive files")
         .subcommand(clap::SubCommand::with_name("info")
