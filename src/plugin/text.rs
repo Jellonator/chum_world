@@ -31,8 +31,8 @@ impl FilePlugin for FilePluginLengthText {
 
     fn create_editor(&self, parent: &Rc<RefCell<Page>>, file: &Rc<RefCell<ArchiveFile>>) -> CResult<Widget> {
         let scroll = gtk::ScrolledWindow::new(None, None);
-        scroll.set_margin_left(4);
-        scroll.set_margin_right(4);
+        scroll.set_margin_start(4);
+        scroll.set_margin_end(4);
         scroll.set_margin_top(4);
         scroll.set_margin_bottom(4);
         scroll.set_hexpand(true);

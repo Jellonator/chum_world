@@ -43,8 +43,8 @@ pub fn construct_editor(parent: Rc<RefCell<Page>>, file: Rc<RefCell<ArchiveFile>
     let hbox = gtk::Box::new(gtk::Orientation::Vertical, 4);
     let grid = gtk::Grid::new();
     // Create grid layout
-    grid.set_margin_left(4);
-    grid.set_margin_right(4);
+    grid.set_margin_start(4);
+    grid.set_margin_end(4);
     grid.attach(&gtk::Label::new("Name"),    0, 0, 1, 1);
     grid.attach(&gtk::Label::new("Type"),    0, 1, 1, 1);
     grid.attach(&gtk::Label::new("Subtype"), 0, 2, 1, 1);

@@ -14,9 +14,9 @@ use util::{self, ChumArchive, CResult};
 /// data that is stored can be safely removed (e.g. splitting files into
 /// chunks, chunk sizes, the actual file's data, etc.).
 #[derive(Serialize, Deserialize)]
-struct JsonData {
-    header: String,
-    files: Vec<JsonDataFile>,
+pub struct JsonData {
+    pub header: String,
+    pub files: Vec<JsonDataFile>,
 }
 
 impl JsonData {
@@ -32,11 +32,11 @@ impl JsonData {
 
 /// Represents a file element in the .json file.
 #[derive(Serialize, Deserialize)]
-struct JsonDataFile {
-    id: String,
-    type_id: String,
-    subtype_id: String,
-    file_name: String,
+pub struct JsonDataFile {
+    pub id: String,
+    pub type_id: String,
+    pub subtype_id: String,
+    pub file_name: String,
 }
 
 /// Extract the given archive to the given folder

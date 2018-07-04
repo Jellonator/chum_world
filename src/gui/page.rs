@@ -10,7 +10,6 @@ use std::cell::RefCell;
 use super::editor;
 use super::app::Application;
 use plugin;
-use std::mem;
 
 /// Single DGC file, but with IDs replaced with names.
 pub struct ArchiveFile {
@@ -38,6 +37,7 @@ pub struct Page {
     pub tool: gtk::Box,
     pub need_save: bool,
     pub plugin_manager: plugin::PluginManager,
+    stop_recurse: bool,
 }
 
 impl Archive {
@@ -179,14 +179,22 @@ impl Page {
             tool: tool,
             need_save: true,
             plugin_manager: plugin::PluginManager::new(),
+            stop_recurse: false,
         }));
-        page.borrow_mut().update_file_list();
+        Page::update_file_list(&page);
         page.borrow_mut().set_need_save(false);
         // Add callback for row selection
         let lspage = Rc::downgrade(&page);
         list.connect_row_selected(move |_, _| {
             let lspage = lspage.upgrade().unwrap();
-            Page::reset_file_editor(&lspage);
+            if !lspage.borrow().stop_recurse {
+                lspage.borrow_mut().stop_recurse = true;
+                let file = lspage.borrow().get_active_file();
+                Page::soft_update_file_list(&lspage);
+                Page::set_active_file(&lspage, file.as_ref());
+                Page::reset_file_editor(&lspage);
+                lspage.borrow_mut().stop_recurse = false;
+            }
         });
         Ok(page)
     }
@@ -196,7 +204,8 @@ impl Page {
         let row = page.borrow().list.get_selected_row();
         // Remove existing editor
         for child in &page.borrow().tool.get_children() {
-            page.borrow().tool.remove(child);
+            // page.borrow().tool.remove(child);
+            child.destroy();
         }
         // Create editor (or empty label if no files are selected)
         if let Some(row) = row {
@@ -211,21 +220,58 @@ impl Page {
     }
 
     /// Completely update the file list
-    pub fn update_file_list(&mut self) {
-        self.archive.sort_files();
+    pub fn update_file_list(page: &Rc<RefCell<Page>>) {
+        page.borrow_mut().archive.sort_files();
+        // Page::set_active_file(page, None);
+        let list = page.borrow().list.clone();
+        page.borrow_mut().stop_recurse = true;
+        list.unselect_all();
+        page.borrow_mut().stop_recurse = false;
         // Remove all files
-        for w in &self.list.get_children() {
-            self.list.remove(w);
+        let page = page.borrow_mut();
+        for w in &list.get_children() {
+            // page.list.remove(w);
+            w.destroy();
         }
         // Generate new, better files
-        for file in &self.archive.files {
+        for file in &page.archive.files {
             let file = file.borrow();
             let row_label = Label::new(file.name.as_str());
             row_label.set_justify(gtk::Justification::Left);
             row_label.set_halign(gtk::Align::Start);
-            self.list.add(&row_label);
+            list.add(&row_label);
         }
-        self.list.show_all();
+        list.show_all();
+    }
+
+    /// Only update label names in the file list
+    pub fn soft_update_file_list(page: &Rc<RefCell<Page>>) {
+        let mut page = page.borrow_mut();
+        page.archive.sort_files();
+        // Generate new, better files
+        for i in 0..page.archive.files.len() {
+            let file = page.archive.files[i].borrow();
+            // let row_label = Label::new(file.name.as_str());
+            let row_label = page.list.get_row_at_index(i as i32)
+                .unwrap().get_children()[0].clone().downcast::<Label>().unwrap();
+            row_label.set_text(file.name.as_str());
+        }
+        page.list.show_all();
+    }
+
+    pub fn get_active_file(&self) -> Option<Rc<RefCell<ArchiveFile>>> {
+        let row = self.list.get_selected_row();
+        row.map(|row| self.archive.files[row.get_index() as usize].clone())
+    }
+
+    pub fn set_active_file(page: &Rc<RefCell<Page>>, file: Option<&Rc<RefCell<ArchiveFile>>>) {
+        let row = {
+            let page = page.borrow();
+            let rowid = file.and_then(|file| page.archive.find(&file.borrow().name));
+            rowid.and_then(|id| page.list.get_row_at_index(id as i32))
+        };
+        let list = page.borrow().list.clone();
+        list.select_row(row.as_ref());
     }
 
     /// Set the name of the given file in the file list

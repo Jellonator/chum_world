@@ -1,6 +1,6 @@
 use gtk::{self, MenuItemExt, Button, HeaderBar, Notebook, FileChooserAction};
 use gtk::prelude::*;
-use super::page::Page;
+use super::page::{Page, ArchiveFile};
 use util::{self, CResult, ChumArchive};
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -97,12 +97,40 @@ pub fn action_import_all(app: &Rc<RefCell<Application>>) -> CResult<()> {
     let path = current_page.borrow().paths.d.parent().unwrap().to_owned();
     let value = util::open_any(&path, "Select folder to import files from",
         &app.borrow().window, FileChooserAction::SelectFolder);
+    if let Some(path) = value {
+        let archive = extract::import_archive(&path)?;
+        let mut num_replace = 0;
+        let mut num_total = 0;
+        let current_file = current_page.borrow().get_active_file();
+        {
+            let mut page = current_page.borrow_mut();
+            for file in archive.dgc.iter_files() {
+                if page.archive.exists(&archive.ngc.names[&file.id1]) {
+                    num_replace += 1;
+                }
+                num_total += 1;
+            }
+            if util::ask_confirmation(&app.borrow().window,
+            &format!("{} files will be replaced and {} new files will be added.\nIs this okay?",
+            num_replace, num_total-num_replace)) {
+                for file in archive.dgc.data.into_iter().flat_map(|chunk| chunk.data.into_iter()) {
+                    let fdata = ArchiveFile {
+                        data: file.data,
+                        name: archive.ngc.names[&file.id1].to_owned(),
+                        subtypeid: archive.ngc.names[&file.id2].to_owned(),
+                        typeid: archive.ngc.names[&file.type_id].to_owned(),
+                    };
+                    page.archive.add(fdata);
+                }
+            } else {
+                return Ok(());
+            }
+        }
+        Page::update_file_list(&current_page);
+        Page::set_active_file(&current_page, current_file.as_ref());
+    }
     Ok(())
 }
-
-// pub fn action_extract_type(app: &Rc<RefCell<Application>>) -> CResult<()> {
-//
-// }
 
 impl Application {
     /// Get the current page ID

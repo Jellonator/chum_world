@@ -7,7 +7,7 @@ authors = ["jellonator"]
 byteorder = "1.2.3"
 clap = "2.31.2"
 crc = "1.8.1"
-gtk = {version="0.4.1", features = ["v3_10"]}
+gtk = {version="0.4.1", features = ["v3_14"]}
 serde = "1.0.66"
 serde_derive = "1.0.66"
 serde_json = "1.0.21"
