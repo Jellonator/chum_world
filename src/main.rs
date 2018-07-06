@@ -154,7 +154,7 @@ fn main() -> Result<(), Box<error::Error>> {
     // Generate commands
     let app = clap::App::new("Chum World")
         //.setting(clap::AppSettings::ArgRequiredElseHelp)
-        .version("0.1.1")
+        .version("0.2.0")
         .author("James \"Jellonator\" B. <jellonator00@gmail.com>")
         .about("Edits Revenge of the Flying Dutchman archive files")
         .subcommand(clap::SubCommand::with_name("info")
