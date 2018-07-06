@@ -1,4 +1,4 @@
-# chum_world
+# Chum World
 This is a tool used to edit Revenge of the Flying Dutchman .DGC/.NGC archives. There are two ways to use this tool: command-line mode, and GUI mode. This README will cover both.
 
 ## GUI mode
@@ -33,7 +33,7 @@ Once you are done editing an archive, you can click the 'Save' button on the upp
 You can get a list of available commands using `chum_world help`, which will print out this:
 
 ```
-Chum World 1.0
+Chum World 0.2.0
 James "Jellonator" B. <jellonator00@gmail.com>
 Edits Revenge of the Flying Dutchman archive files
 
@@ -53,3 +53,10 @@ SUBCOMMANDS:
 ```
 
 The command names are fairly self-explanatory. Use `chum_world help {command}` for more informaiton about the given command.
+
+## Compiling
+You will need the Rust compiler to compile this program. You can get it here: https://www.rust-lang.org/en-US/install.html.
+
+To compile this program, run `cargo build --release` in the root directory of this repository. You may need to install gtk3 development packages.
+
+Once the program has been compiled, you can find it in `./target/release/chum_world`.
