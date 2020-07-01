@@ -1,4 +1,6 @@
 # Chum World
+*THIS TOOL IS GOING TO BE DEPRECATED. DEVELOPMENT IS MORE ACTIVE AT https://github.com/Jellonator/chum-world/*
+
 This is a tool used to edit Revenge of the Flying Dutchman .DGC/.NGC archives. There are two ways to use this tool: command-line mode, and GUI mode. This README will cover both.
 
 ## GUI mode
